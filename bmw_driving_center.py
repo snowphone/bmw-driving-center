@@ -138,7 +138,12 @@ def main(args: Namespace):
     logger.info(f"Given arguments: {args}")
     resp = BmwDrivingCenter(args.id, args.pw).search_for(args.program)
 
-    holiday_only = [it for it in resp if it["PlayDate"] in holidays_in_korea()]
+    holiday_only = [
+        it
+        for it in resp
+        if it["PlayDate"] in holidays_in_korea()
+        and it["PlayDate"] not in set(args.excepts)
+    ]
     PrettyPrinter().pprint(holiday_only)
 
     if args.notify:
@@ -151,5 +156,8 @@ if __name__ == "__main__":
     parser.add_argument("--pw", default=os.environ.get("BMW_PW"))
     parser.add_argument("--program", choices=["M Drift I", "M Core"], required=True)
     parser.add_argument("--notify", action="store_true")
+    parser.add_argument(
+        "--excepts", nargs="+", default=[], help="제외시킬 날짜. 포맷: YYYY-MM-DD"
+    )
 
     main(parser.parse_args())
