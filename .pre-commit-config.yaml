@@ -1,0 +1,38 @@
+repos:
+  # Remove unused imports.
+  - repo: https://github.com/myint/autoflake
+    rev: v2.0.2
+    hooks:
+      - id: autoflake
+        entry: bash -c 'autoflake "$@"; git add -u' --
+        args:
+          - --in-place
+          - --remove-all-unused-imports
+  # Format code.
+  - repo: https://github.com/psf/black
+    rev: 23.3.0
+    hooks:
+      - id: black
+        args:
+          - --skip-string-normalization
+  # Sort imports.
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.11.5
+    hooks:
+      - id: isort
+        args:
+          - --profile=black
+          - --force-grid-wrap=2
+          - --multi-line=VERTICAL_HANGING_INDENT
+  # Trim trailing whitespaces
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.2.0
+    hooks:
+      - id: trailing-whitespace
+  # Examine whether PEP8 coding style is satisfied.
+  - repo: https://github.com/PyCQA/flake8
+    rev: 3.9.2
+    hooks:
+      - id: flake8
+        args:
+          - --max-line-length=88
