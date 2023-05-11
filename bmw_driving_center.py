@@ -1,9 +1,13 @@
+import logging
 import os
+import sys
 from argparse import (
     ArgumentParser,
     Namespace,
 )
 from datetime import datetime
+from functools import lru_cache
+from operator import attrgetter
 from pprint import PrettyPrinter
 from typing import Literal
 
@@ -12,10 +16,28 @@ import holidays
 import requests
 from urllib3.exceptions import InsecureRequestWarning
 
+# Suppress only the single warning from urllib3 needed.
+requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)  # type: ignore  # noqa: E501
+
 dotenv.load_dotenv()
 
-# Suppress only the single warning from urllib3 needed.
-requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
+
+log_level = attrgetter(os.environ.get("LOG_LEVEL", "INFO").upper())(logging)
+
+
+logging.basicConfig(
+    stream=sys.stderr,
+    level=log_level,
+    format=(
+        "[%(levelname).1s %(asctime)s.%(msecs)03d+09:00 "
+        "%(processName)s:%(filename)s:%(funcName)s:"
+        "%(module)s:%(lineno)d]\n"
+        "%(message)s"
+    ),
+    datefmt="%Y-%m-%dT%H:%M:%S",
+)
+
+logger = logging.getLogger()
 
 
 class BmwDrivingCenter:
@@ -39,6 +61,7 @@ class BmwDrivingCenter:
                 "callbackUri": "null",
             },
         )
+        logger.info(f"Log in status code: {resp.status_code}")
         assert resp.status_code == 302
 
         self.sess.get("https://www.bmw-driving-center.co.kr/kr/index.do")
@@ -55,6 +78,7 @@ class BmwDrivingCenter:
         raw_program_info = next(
             it for it in resp.json()["item"] if program in it["ProgCodeName"]
         )
+        logger.info(f"{program}: {raw_program_info}")
 
         result = []
         for course in raw_program_info["course"]:
@@ -65,6 +89,7 @@ class BmwDrivingCenter:
                 for k, v in course.items()
                 if k in {"PlaySeq", "ProgName", "PlaceCode", "GoodsCode", "Course"}
             }
+            logger.info(f"{payload=}")
 
             resp = self.sess.post(
                 "https://www.bmw-driving-center.co.kr/kr/api/getProgramUseYn.do",
@@ -76,23 +101,23 @@ class BmwDrivingCenter:
                 data=payload,
             )
             available_date_list = resp.json()["item"]
+            logger.info(f"{available_date_list=}")
 
-            remaining_seat = [
-                it
-                for dt in available_date_list
-                if (
-                    it := self.sess.post(
-                        "https://www.bmw-driving-center.co.kr/kr/api/program/getProgramTime.do",  # noqa: E501
-                        data={
-                            **payload,
-                            "PlayDate": dt.replace("-", ""),
-                            "SeatCnt": "0",
-                        },
-                    ).json()["item"][0]
-                )["RemainSeatCnt"]
-                > 0
-            ]
-            result.extend(remaining_seat)
+            for dt in available_date_list:
+                resp = self.sess.post(
+                    "https://www.bmw-driving-center.co.kr/kr/api/program/getProgramTime.do",  # noqa: E501
+                    data={
+                        **payload,
+                        "PlayDate": dt.replace("-", ""),
+                        "SeatCnt": "0",
+                    },
+                ).json()
+                logger.info(f"{dt}: {resp}")
+
+                it = resp["item"][0]
+                if it["RemainSeatCnt"] == 0:
+                    continue
+                result.append(it)
 
         self._convert_to_iso_format(result)
 
@@ -107,14 +132,19 @@ class BmwDrivingCenter:
         return
 
 
+@lru_cache
 def korea_holidays():
     year = datetime.now().year
-    return {
+    holiday_set = {"2023-05-29"} | {
         it.isoformat() for it in holidays.SouthKorea(years={year, year + 1}).keys()
-    } | {"2023-05-29"}
+    }
+
+    logger.info(f"Holidays: {holiday_set}")
+    return holiday_set
 
 
 def main(args: Namespace):
+    logger.info(f"Given arguments: {args}")
     resp = BmwDrivingCenter(args.id, args.pw).search_for(args.program)
 
     holiday_only = [it for it in resp if it["PlayDate"] in korea_holidays()]
