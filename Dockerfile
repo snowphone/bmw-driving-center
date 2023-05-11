@@ -11,12 +11,11 @@ RUN apt-get update && \
 RUN pip install --upgrade pip && pip install poetry
 RUN poetry config virtualenvs.create false && poetry config virtualenvs.in-project false
 
-ENV DRIVER_FILE=./bmw_driving_center.py
+ENV DRIVER_FILE=bmw_driving_center.py
 
 COPY pyproject.toml             ./
 COPY "${DRIVER_FILE}"           ./
 
 RUN poetry install --no-dev
 
-
-ENTRYPOINT [ "python", "/app/${DRIVER_FILE}" ]
+ENTRYPOINT [ "python", /app/bmw_driving_center.py ]
