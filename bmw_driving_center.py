@@ -1,4 +1,8 @@
 import os
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
 from datetime import datetime
 from pprint import PrettyPrinter
 from typing import Literal
@@ -110,14 +114,17 @@ def korea_holidays():
     } | {"2023-05-29"}
 
 
-def main():
-    username = os.environ["BMW_ID"]
-    password = os.environ["BMW_PW"]
-    resp = BmwDrivingCenter(username, password).search_for("M Drift I")
+def main(args: Namespace):
+    resp = BmwDrivingCenter(args.id, args.pw).search_for(args.program)
 
     holiday_only = [it for it in resp if it["PlayDate"] in korea_holidays()]
     PrettyPrinter().pprint(holiday_only)
 
 
 if __name__ == "__main__":
-    main()
+    parser = ArgumentParser()
+    parser.add_argument("--id", default=os.environ["BMW_ID"])
+    parser.add_argument("--pw", default=os.environ["BMW_PW"])
+    parser.add_argument("--program", choices=["M Drift I", "M Core"], required=True)
+
+    main(parser.parse_args())
