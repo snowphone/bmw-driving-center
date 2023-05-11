@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "bmw-driving-center"
+version = "0.1.0"
+description = ""
+authors = ["Junoh Moon <mjo970625@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+requests = "^2.30.0"
+python-dotenv = "^1.0.0"
+
+
+[tool.poetry.dev-dependencies]
+black = "^23.3.0"
+pre-commit = "^3.3.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
