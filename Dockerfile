@@ -8,11 +8,9 @@ WORKDIR /app
 RUN pip install --upgrade pip && pip install poetry
 RUN poetry config virtualenvs.create false && poetry config virtualenvs.in-project false
 
-ENV DRIVER_FILE=bmw_driving_center.py
-
 COPY pyproject.toml             ./
-COPY "${DRIVER_FILE}"           ./
+COPY src                        ./src/
 
 RUN poetry install --no-dev
 
-ENTRYPOINT [ "python", "/app/bmw_driving_center.py" ]
+ENTRYPOINT [ "python", "/app/src/bmw_driving_center.py" ]

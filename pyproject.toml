@@ -9,6 +9,7 @@ python = "^3.8"
 requests = "^2.30.0"
 python-dotenv = "^1.0.0"
 holidays = "^0.24"
+simplejson = "^3.19.1"
 
 
 [tool.poetry.dev-dependencies]
