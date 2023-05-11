@@ -15,6 +15,7 @@ import requests
 from urllib3.exceptions import InsecureRequestWarning
 
 from holiday import holidays_in_korea
+from notification import notify
 
 # Suppress only the single warning from urllib3 needed.
 requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)  # type: ignore  # noqa: E501
@@ -140,11 +141,15 @@ def main(args: Namespace):
     holiday_only = [it for it in resp if it["PlayDate"] in holidays_in_korea()]
     PrettyPrinter().pprint(holiday_only)
 
+    if args.notify:
+        notify(holiday_only)
+
 
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--id", default=os.environ["BMW_ID"])
     parser.add_argument("--pw", default=os.environ["BMW_PW"])
     parser.add_argument("--program", choices=["M Drift I", "M Core"], required=True)
+    parser.add_argument("--notify", action="store_true")
 
     main(parser.parse_args())

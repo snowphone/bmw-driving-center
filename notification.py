@@ -1,9 +1,12 @@
+import functools
 from datetime import datetime
 from typing import Any
 
+import simplejson
 from requests import post
 
-from .json import dumps
+loads = simplejson.loads
+dumps = functools.partial(simplejson.dumps, for_json=True)
 
 
 def notify(data: Any):
@@ -12,6 +15,6 @@ def notify(data: Any):
         data=dumps(data, indent=2).encode("utf-8"),
         headers={
             "Title": f"Available programs on {datetime.now().date().isoformat()}",
-            "priority": '3',
+            "priority": '3' if data else '2',
         },
     )
