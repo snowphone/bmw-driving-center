@@ -1,19 +1,17 @@
 import os
+from datetime import datetime
 from pprint import PrettyPrinter
 from typing import Literal
-import requests
-from urllib3.exceptions import InsecureRequestWarning
 
 import dotenv
+import holidays
+import requests
+from urllib3.exceptions import InsecureRequestWarning
 
 dotenv.load_dotenv()
 
 # Suppress only the single warning from urllib3 needed.
 requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
-
-
-def print(*args):
-    PrettyPrinter().pprint(args)
 
 
 class BmwDrivingCenter:
@@ -37,6 +35,7 @@ class BmwDrivingCenter:
                 "callbackUri": "null",
             },
         )
+        assert resp.status_code == 302
 
         self.sess.get("https://www.bmw-driving-center.co.kr/kr/index.do")
         self.sess.get("https://www.bmw-driving-center.co.kr/kr/program/reserve.do")
@@ -52,35 +51,6 @@ class BmwDrivingCenter:
         raw_program_info = next(
             it for it in resp.json()["item"] if program in it["ProgCodeName"]
         )
-        print(raw_program_info)
-        '''
-                {'ProgCodeName': 'M Drift I',
-          'ProgName': '10034',
-          'course': [{'Course': '34001',
-                      'GoodsCode': '14000326',
-                      'OpTime': '0900',
-                      'PlaceCode': '14000035',
-                      'PlayDate': '20230512',
-                      'PlaySeq': 'V38',
-                      'ProgName': '10034',
-                      'RemainSeatCnt': 0,
-                      'SeatGrade': '1',
-                      'SeatGradeName': 'M Drift I - M Drift'},
-                     {'Course': '34002',
-                      'GoodsCode': '14000326',
-                      'OpTime': '1340',
-                      'PlaceCode': '14000035',
-                      'PlayDate': '20230514',
-                      'PlaySeq': 'V40',
-                      'ProgName': '10034',
-                      'RemainSeatCnt': 0,
-                      'SeatGrade': '8',
-                      'SeatGradeName': 'M Drift I - Voucher'}],
-          'extYN': 'N',
-          'level': '2',
-          'pgType': 'T',
-          'sort': '5'}
-        '''
 
         result = []
         for course in raw_program_info["course"]:
@@ -98,7 +68,7 @@ class BmwDrivingCenter:
             )
 
             resp = self.sess.post(
-                "https://www.bmw-driving-center.co.kr/kr/api/program/getProgramPlayDate.do",
+                "https://www.bmw-driving-center.co.kr/kr/api/program/getProgramPlayDate.do",  # noqa: E501
                 data=payload,
             )
             available_date_list = resp.json()["item"]
@@ -108,7 +78,7 @@ class BmwDrivingCenter:
                 for dt in available_date_list
                 if (
                     it := self.sess.post(
-                        "https://www.bmw-driving-center.co.kr/kr/api/program/getProgramTime.do",
+                        "https://www.bmw-driving-center.co.kr/kr/api/program/getProgramTime.do",  # noqa: E501
                         data={
                             **payload,
                             "PlayDate": dt.replace("-", ""),
@@ -116,20 +86,37 @@ class BmwDrivingCenter:
                         },
                     ).json()["item"][0]
                 )["RemainSeatCnt"]
+                > 0
             ]
             result.extend(remaining_seat)
 
+        self._convert_to_iso_format(result)
+
         return result
+
+    def _convert_to_iso_format(self, entry_list: list[dict]):
+        for it in entry_list:
+            it["PlayDate"] = (
+                datetime.strptime(it["PlayDate"], "%Y%m%d").date().isoformat()
+            )
+
+        return
+
+
+def korea_holidays():
+    year = datetime.now().year
+    return {
+        it.isoformat() for it in holidays.SouthKorea(years={year, year + 1}).keys()
+    } | {"2023-05-29"}
 
 
 def main():
     username = os.environ["BMW_ID"]
     password = os.environ["BMW_PW"]
-    assert username and password
-
     resp = BmwDrivingCenter(username, password).search_for("M Drift I")
 
-    print(resp)
+    holiday_only = [it for it in resp if it["PlayDate"] in korea_holidays()]
+    PrettyPrinter().pprint(holiday_only)
 
 
 if __name__ == "__main__":

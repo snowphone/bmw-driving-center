@@ -8,6 +8,7 @@ authors = ["Junoh Moon <mjo970625@gmail.com>"]
 python = "^3.8"
 requests = "^2.30.0"
 python-dotenv = "^1.0.0"
+holidays = "^0.24"
 
 
 [tool.poetry.dev-dependencies]
