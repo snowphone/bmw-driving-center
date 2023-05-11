@@ -6,15 +6,15 @@ from argparse import (
     Namespace,
 )
 from datetime import datetime
-from functools import lru_cache
 from operator import attrgetter
 from pprint import PrettyPrinter
 from typing import Literal
 
 import dotenv
-import holidays
 import requests
 from urllib3.exceptions import InsecureRequestWarning
+
+from holiday import holidays_in_korea
 
 # Suppress only the single warning from urllib3 needed.
 requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)  # type: ignore  # noqa: E501
@@ -74,6 +74,7 @@ class BmwDrivingCenter:
         resp = self.sess.post(
             "https://www.bmw-driving-center.co.kr/kr/api/program/getPrograms.do",
         )
+        logger.debug(resp.json())
 
         raw_program_info = next(
             it for it in resp.json()["item"] if program in it["ProgCodeName"]
@@ -132,22 +133,11 @@ class BmwDrivingCenter:
         return
 
 
-@lru_cache
-def korea_holidays():
-    year = datetime.now().year
-    holiday_set = {"2023-05-29"} | {
-        it.isoformat() for it in holidays.SouthKorea(years={year, year + 1}).keys()
-    }
-
-    logger.info(f"Holidays: {holiday_set}")
-    return holiday_set
-
-
 def main(args: Namespace):
     logger.info(f"Given arguments: {args}")
     resp = BmwDrivingCenter(args.id, args.pw).search_for(args.program)
 
-    holiday_only = [it for it in resp if it["PlayDate"] in korea_holidays()]
+    holiday_only = [it for it in resp if it["PlayDate"] in holidays_in_korea()]
     PrettyPrinter().pprint(holiday_only)
 
 
