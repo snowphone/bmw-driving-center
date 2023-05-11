@@ -8,7 +8,6 @@ from argparse import (
 from datetime import datetime
 from operator import attrgetter
 from pprint import PrettyPrinter
-from typing import Literal
 
 import dotenv
 import requests
@@ -41,6 +40,28 @@ logging.basicConfig(
 logger = logging.getLogger()
 
 
+AVAILABLE_PROGRAMS = [
+    'Test Drive',
+    'Scenic Drive',
+    'Night Drive',
+    'i Drive',
+    'On-Road',
+    'Off-Road',
+    'Taxi',
+    'X Bus',
+    'Owners Track Day',
+    'Owners Drift Day',
+    'Starter Pack',
+    'Intensive',
+    'M/JCW Intensive',
+    'M Core',
+    'M Drift I',
+    'M Drift II',
+    'M Drift Ⅲ',
+    'Private Coaching',
+]
+
+
 class BmwDrivingCenter:
     def __init__(self, username: str, password: str) -> None:
         self.sess = requests.Session()
@@ -71,7 +92,7 @@ class BmwDrivingCenter:
 
         return
 
-    def search_for(self, program: Literal["M Drift I", "M Core"]):
+    def search_for(self, program: str):
         resp = self.sess.post(
             "https://www.bmw-driving-center.co.kr/kr/api/program/getPrograms.do",
         )
@@ -154,7 +175,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--id", default=os.environ.get("BMW_ID"))
     parser.add_argument("--pw", default=os.environ.get("BMW_PW"))
-    parser.add_argument("--program", choices=["M Drift I", "M Core"], required=True)
+    parser.add_argument("--program", choices=AVAILABLE_PROGRAMS, required=True)
     parser.add_argument("--notify", action="store_true")
     parser.add_argument(
         "--excepts", nargs="+", default=[], help="제외시킬 날짜. 포맷: YYYY-MM-DD"
