@@ -147,8 +147,8 @@ def main(args: Namespace):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--id", default=os.environ["BMW_ID"])
-    parser.add_argument("--pw", default=os.environ["BMW_PW"])
+    parser.add_argument("--id", default=os.environ.get("BMW_ID"))
+    parser.add_argument("--pw", default=os.environ.get("BMW_PW"))
     parser.add_argument("--program", choices=["M Drift I", "M Core"], required=True)
     parser.add_argument("--notify", action="store_true")
 
