@@ -23,8 +23,6 @@ dotenv.load_dotenv()
 
 
 log_level = attrgetter(os.environ.get("LOG_LEVEL", "INFO").upper())(logging)
-
-
 logging.basicConfig(
     stream=sys.stderr,
     level=log_level,
@@ -36,7 +34,6 @@ logging.basicConfig(
     ),
     datefmt="%Y-%m-%dT%H:%M:%S",
 )
-
 logger = logging.getLogger()
 
 
@@ -167,8 +164,8 @@ def main(args: Namespace):
     ]
     PrettyPrinter().pprint(holiday_only)
 
-    if args.notify:
-        notify(holiday_only)
+    if args.notify and holiday_only:
+        notify(holiday_only, program=args.program)
 
 
 if __name__ == "__main__":
