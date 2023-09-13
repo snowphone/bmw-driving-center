@@ -22,7 +22,7 @@ def holidays_in_korea():
         for it in set(SouthKorea(years=years).keys()) | get_all_weekends(years)
     }
 
-    logger.info(f"Holidays: {holiday_set}")
+    logger.debug(f"Holidays: {holiday_set}")
     return holiday_set
 
 
