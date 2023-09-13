@@ -153,7 +153,7 @@ def main(args: Namespace):
     pprint(holiday_only)
 
     if args.notify and holiday_only:
-        notify(holiday_only, program=args.program)
+        notify(holiday_only, program=args.programs)
 
 
 if __name__ == "__main__":
