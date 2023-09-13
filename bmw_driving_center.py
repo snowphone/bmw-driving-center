@@ -7,7 +7,10 @@ from argparse import (
     Namespace,
 )
 from collections import defaultdict
-from datetime import datetime
+from datetime import (
+    date,
+    datetime,
+)
 from operator import attrgetter
 from pprint import pprint
 
@@ -18,7 +21,10 @@ from urllib3.exceptions import InsecureRequestWarning
 
 from holiday import holidays_in_korea
 from notification import notify
-from structs import ReturnType
+from structs import (
+    ProgramInDate,
+    ReturnType,
+)
 
 # Suppress only the single warning from urllib3 needed.
 requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)  # type: ignore  # noqa: E501
@@ -135,6 +141,11 @@ class BmwDrivingCenter:
         return
 
 
+def date_with_weekday(dt: str):
+    it = date.fromisoformat(dt)
+    return it.strftime("%Y-%m-%d (%a)")
+
+
 def main(args: Namespace):
     logger.info(f"Given arguments: {args}")
     resp = BmwDrivingCenter(args.id, args.pw).search_for(args.programs)
@@ -143,7 +154,7 @@ def main(args: Namespace):
 
     holiday_only = {
         pg: [
-            it
+            ProgramInDate(date=date_with_weekday(it["date"]), programs=it["programs"])
             for it in dates
             if it["date"] in holidays_in_korea() and it["date"] not in set(args.excepts)
         ]
