@@ -1,20 +1,24 @@
 import logging
 import os
+import random
 import sys
 from argparse import (
     ArgumentParser,
     Namespace,
 )
+from collections import defaultdict
 from datetime import datetime
 from operator import attrgetter
-from pprint import PrettyPrinter
+from pprint import pprint
 
 import dotenv
 import requests
+from dateutil.relativedelta import relativedelta
 from urllib3.exceptions import InsecureRequestWarning
 
 from holiday import holidays_in_korea
 from notification import notify
+from structs import ReturnType
 
 # Suppress only the single warning from urllib3 needed.
 requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)  # type: ignore  # noqa: E501
@@ -29,7 +33,7 @@ logging.basicConfig(
     format=(
         "[%(levelname).1s %(asctime)s.%(msecs)03d+09:00 "
         "%(processName)s:%(filename)s:%(funcName)s:"
-        "%(module)s:%(lineno)d]\n"
+        "%(module)s:%(lineno)d] "
         "%(message)s"
     ),
     datefmt="%Y-%m-%dT%H:%M:%S",
@@ -38,24 +42,13 @@ logger = logging.getLogger()
 
 
 AVAILABLE_PROGRAMS = [
-    'Test Drive',
-    'Scenic Drive',
-    'Night Drive',
-    'i Drive',
-    'On-Road',
-    'Off-Road',
-    'Taxi',
-    'X Bus',
-    'Owners Track Day',
-    'Owners Drift Day',
-    'Starter Pack',
-    'Intensive',
-    'M/JCW Intensive',
-    'M Core',
-    'M Drift I',
-    'M Drift II',
-    'M Drift Ⅲ',
-    'Private Coaching',
+    "Starter Pack",
+    "M Core",
+    "M/JCW Intensive",
+    "M Drift Ⅰ",
+    "M Drift Ⅱ",
+    "M Drift Ⅲ",
+    "Starter Pack(Eng)",
 ]
 
 
@@ -64,84 +57,74 @@ class BmwDrivingCenter:
         self.sess = requests.Session()
         self.sess.verify = False
 
-        self._login(username, password)
         return
+
+    @classmethod
+    def _rand_10_chars(cls):
+        return format(random.randint(0, 36**10), "x")
 
     def _login(self, username: str, password: str):
-        self.sess.get("https://www.bmw-driving-center.co.kr/kr/login.do")
-
-        resp = self.sess.post(
-            "https://www.bmw-driving-center.co.kr/kr/logon.do",
-            allow_redirects=False,
-            data={
-                "u_id": username,
-                "u_pw": password,
-                "u_save": "Y",
-                "callbackUri": "null",
-            },
+        ts = int(datetime.now().timestamp())
+        resp = self.sess.get(
+            f"https://customer.bmwgroup.com/oneid/oneidconfig/client/dcbmw.json?t={ts}"
         )
-        logger.info(f"Log in status code: {resp.status_code}")
-        assert resp.status_code == 302
+        client_id = resp.json()["client"]["client_id"]
 
-        self.sess.get("https://www.bmw-driving-center.co.kr/kr/index.do")
-        self.sess.get("https://www.bmw-driving-center.co.kr/kr/program/reserve.do")
-        self.sess.get("https://www.bmw-driving-center.co.kr/kr/program/reserve1.do")
-
+        login_payload = dict(
+            client_id=client_id,
+            response_type="code",
+            scope="openid%%20authenticate_user",
+            redirect_uri="https%%3A%%2F%%2Fdriving-center.bmw.co.kr%%2Flogin%%2Foauth2%%2Fcode%%2Fgcdm",  # noqa
+            state=self._rand_10_chars(),
+            nonce="",
+            username=username,
+            password=password,
+            grant_type="authorization_code",
+        )
+        resp = self.sess.post(
+            "https://customer.bmwgroup.com/gcdm/oauth/authenticate",
+            data=login_payload,
+        )
+        assert resp.status_code == 200
         return
 
-    def search_for(self, program: str):
-        resp = self.sess.post(
-            "https://www.bmw-driving-center.co.kr/kr/api/program/getPrograms.do",
-        )
-        logger.debug(resp.json())
+    def search_for(self, programs: list[str]) -> ReturnType:
+        answer = defaultdict(list)
 
-        raw_program_info = next(
-            it for it in resp.json()["item"] if program in it["ProgCodeName"]
-        )
-        logger.info(f"{program}: {raw_program_info}")
+        for program in programs:
+            product_code = self._get_product_code(program)
 
-        result = []
-        for course in raw_program_info["course"]:
-            payload = {
-                k: v for k, v in raw_program_info.items() if k in {"extYN", "level"}
-            } | {
-                k: v
-                for k, v in course.items()
-                if k in {"PlaySeq", "ProgName", "PlaceCode", "GoodsCode", "Course"}
-            }
-            logger.info(f"{payload=}")
+            months = [
+                it.strftime("%Y%m")
+                for it in [datetime.now(), (datetime.now() + relativedelta(months=1))]
+            ]
+            for month in months:
+                logger.info(month)
+                resp = self.sess.get(
+                    f"https://driving-center.bmw.co.kr/api/public/schedule?targetMonth={month}&productMasterCode={product_code}"  # noqa
+                )
+                data = resp.json()["data"]["turnDateList"]
 
-            resp = self.sess.post(
-                "https://www.bmw-driving-center.co.kr/kr/api/getProgramUseYn.do",
-                data={"progName": payload["Course"]},
-            )
+                for it in data:
+                    date = it["turnDate"]
+                    resp = self.sess.get(
+                        f"https://driving-center.bmw.co.kr/api/public/schedule/{date.replace('-', '')}?productMasterCode={product_code}"  # noqa
+                    )
+                    answer[program].append(
+                        {"date": date, "programs": resp.json()["data"]}
+                    )
+        return dict(answer)
 
-            resp = self.sess.post(
-                "https://www.bmw-driving-center.co.kr/kr/api/program/getProgramPlayDate.do",  # noqa: E501
-                data=payload,
-            )
-            available_date_list = resp.json()["item"]
-            logger.info(f"{available_date_list=}")
+    def _get_product_code(self, name: str):
+        data = self.sess.get(
+            "https://driving-center.bmw.co.kr/api/public/categories/2/program"
+        ).json()
+        programs = data["data"]
 
-            for dt in available_date_list:
-                resp = self.sess.post(
-                    "https://www.bmw-driving-center.co.kr/kr/api/program/getProgramTime.do",  # noqa: E501
-                    data={
-                        **payload,
-                        "PlayDate": dt.replace("-", ""),
-                        "SeatCnt": "0",
-                    },
-                ).json()
-                logger.info(f"{dt}: {resp}")
-
-                it = resp["item"][0]
-                if it["RemainSeatCnt"] == 0:
-                    continue
-                result.append(it)
-
-        self._convert_to_iso_format(result)
-
-        return result
+        logger.info(name)
+        obj = next(it for it in programs if it["productNameEnglish"] == name)
+        logger.debug(f"{name}: {obj}")
+        return obj["productMasterCode"]
 
     def _convert_to_iso_format(self, entry_list: list[dict]):
         for it in entry_list:
@@ -154,15 +137,20 @@ class BmwDrivingCenter:
 
 def main(args: Namespace):
     logger.info(f"Given arguments: {args}")
-    resp = BmwDrivingCenter(args.id, args.pw).search_for(args.program)
+    resp = BmwDrivingCenter(args.id, args.pw).search_for(args.programs)
 
-    holiday_only = [
-        it
-        for it in resp
-        if it["PlayDate"] in holidays_in_korea()
-        and it["PlayDate"] not in set(args.excepts)
-    ]
-    PrettyPrinter().pprint(holiday_only)
+    pprint(resp)
+
+    holiday_only = {
+        pg: [
+            it
+            for it in dates
+            if it["date"] in holidays_in_korea() and it["date"] not in set(args.excepts)
+        ]
+        for pg, dates in resp.items()
+    }
+
+    pprint(holiday_only)
 
     if args.notify and holiday_only:
         notify(holiday_only, program=args.program)
@@ -172,10 +160,16 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--id", default=os.environ.get("BMW_ID"))
     parser.add_argument("--pw", default=os.environ.get("BMW_PW"))
-    parser.add_argument("--program", choices=AVAILABLE_PROGRAMS, required=True)
+    parser.add_argument("programs", nargs="+", choices=AVAILABLE_PROGRAMS)
     parser.add_argument("--notify", action="store_true")
     parser.add_argument(
         "--excepts", nargs="+", default=[], help="제외시킬 날짜. 포맷: YYYY-MM-DD"
     )
 
     main(parser.parse_args())
+
+
+# 카테고리: https://driving-center.bmw.co.kr/api/public/categories  # noqa
+# Training 프로그램 목록: https://driving-center.bmw.co.kr/api/public/categories/2/program  # noqa
+# 그 달의 열린 프로그램들: https://driving-center.bmw.co.kr/api/public/schedule?targetMonth=202309&productMasterCode=1015  # noqa
+# 시간대 및 좌석 수: https://driving-center.bmw.co.kr/api/public/schedule/20230914?productMasterCode=1015  # noqa
