@@ -173,7 +173,7 @@ def main(args: Namespace):
 
     pprint(holiday_only)
 
-    if args.notify and holiday_only:
+    if args.notify and any(holiday_only.values()):
         notify(holiday_only, program=str(args.programs))
 
 
