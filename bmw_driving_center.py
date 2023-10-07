@@ -154,11 +154,21 @@ def main(args: Namespace):
 
     holiday_only = {
         pg: [
-            ProgramInDate(date=date_with_weekday(it["date"]), programs=it["programs"])
-            for it in dates
-            if it["date"] in holidays_in_korea() and it["date"] not in set(args.excepts)
+            it
+            for programs_in_a_day in days
+            if (
+                it := ProgramInDate(
+                    date=date_with_weekday(programs_in_a_day["date"]),
+                    programs=programs_in_a_day["programs"],
+                )
+            )
+            and programs_in_a_day["date"] in holidays_in_korea()  # filter out holidays
+            and programs_in_a_day["date"] not in set(args.excepts)
+            for prog in it["programs"]
+            if prog["turnClassificationRemainingProductQuantity"]
+            > 0  # filter out full-booked program
         ]
-        for pg, dates in resp.items()
+        for pg, days in resp.items()
     }
 
     pprint(holiday_only)
