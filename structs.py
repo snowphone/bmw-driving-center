@@ -1,10 +1,9 @@
-from typing import (
-    Dict,
-    TypedDict,
-)
+from typing import Dict
+
+from pydantic import BaseModel
 
 
-class ProgramTime(TypedDict):
+class ProgramTime(BaseModel):
     turnSequence: str
     turnStartTime: str
     turnEndTime: str
@@ -12,7 +11,7 @@ class ProgramTime(TypedDict):
     turnClassificationRemainingProductQuantity: int
 
 
-class ProgramInDate(TypedDict):
+class ProgramInDate(BaseModel):
     date: str
     programs: list[ProgramTime]
 

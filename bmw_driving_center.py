@@ -119,7 +119,9 @@ class BmwDrivingCenter:
                     answer[program].append(
                         {"date": date, "programs": resp.json()["data"]}
                     )
-        return dict(answer)
+        return {
+            k: [ProgramInDate.model_validate(it) for it in v] for k, v in answer.items()
+        }
 
     def _get_product_code(self, name: str):
         data = self.sess.get(
@@ -158,14 +160,14 @@ def main(args: Namespace):
             for programs_in_a_day in days
             if (
                 it := ProgramInDate(
-                    date=date_with_weekday(programs_in_a_day["date"]),
-                    programs=programs_in_a_day["programs"],
+                    date=date_with_weekday(programs_in_a_day.date),
+                    programs=programs_in_a_day.programs,
                 )
             )
-            and programs_in_a_day["date"] in holidays_in_korea()  # filter out holidays
-            and programs_in_a_day["date"] not in set(args.excepts)
-            for prog in it["programs"]
-            if prog["turnClassificationRemainingProductQuantity"]
+            and programs_in_a_day.date in holidays_in_korea()  # filter out holidays
+            and programs_in_a_day.date not in set(args.excepts)
+            for prog in it.programs
+            if prog.turnClassificationRemainingProductQuantity
             > 0  # filter out full-booked program
         ]
         for pg, days in resp.items()
