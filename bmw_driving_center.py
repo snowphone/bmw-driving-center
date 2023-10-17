@@ -7,12 +7,10 @@ from argparse import (
     Namespace,
 )
 from collections import defaultdict
-from datetime import (
-    date,
-    datetime,
-)
+from datetime import datetime
 from operator import attrgetter
 from pprint import pprint
+from typing import Collection
 
 import dotenv
 import requests
@@ -24,6 +22,7 @@ from notification import notify
 from structs import (
     ProgramInDate,
     ReturnType,
+    prettify_date,
 )
 
 # Suppress only the single warning from urllib3 needed.
@@ -143,40 +142,48 @@ class BmwDrivingCenter:
         return
 
 
-def date_with_weekday(dt: str):
-    it = date.fromisoformat(dt)
-    return it.strftime("%Y-%m-%d (%a)")
+def filter_out_full_booked(obj: ReturnType):
+    for pg, days in obj.items():
+        for day in days:
+            filtered = [
+                it
+                for it in day.programs
+                if it.turnClassificationRemainingProductQuantity > 0
+            ]
+            day.programs = filtered
+    return {
+        pg: [pid for pid in pid_list if pid.programs] for pg, pid_list in obj.items()
+    }
+
+
+def choose_only_holidays(obj: ReturnType, excepts: Collection[str]):
+    holiday_only = {
+        pg: [
+            programs_in_a_day
+            for programs_in_a_day in days
+            if programs_in_a_day.date in holidays_in_korea()  # filter out holidays
+            and programs_in_a_day.date not in set(excepts)
+        ]
+        for pg, days in obj.items()
+    }
+    return holiday_only
 
 
 def main(args: Namespace):
     logger.info(f"Given arguments: {args}")
     resp = BmwDrivingCenter(args.id, args.pw).search_for(args.programs)
+    pprint(("Raw data", resp))
 
-    pprint(resp)
+    seats_remaining = filter_out_full_booked(resp)
+    pprint(("Seats remaining", seats_remaining))
 
-    holiday_only = {
-        pg: [
-            it
-            for programs_in_a_day in days
-            if (
-                it := ProgramInDate(
-                    date=date_with_weekday(programs_in_a_day.date),
-                    programs=programs_in_a_day.programs,
-                )
-            )
-            and programs_in_a_day.date in holidays_in_korea()  # filter out holidays
-            and programs_in_a_day.date not in set(args.excepts)
-            for prog in it.programs
-            if prog.turnClassificationRemainingProductQuantity
-            > 0  # filter out full-booked program
-        ]
-        for pg, days in resp.items()
-    }
+    holiday_only = choose_only_holidays(seats_remaining, args.excepts)
+    pprint(("Holiday only", holiday_only))
 
-    pprint(holiday_only)
+    with_weekday = prettify_date(holiday_only)
 
-    if args.notify and any(holiday_only.values()):
-        notify(holiday_only, program=str(args.programs))
+    if args.notify and any(with_weekday.values()):
+        notify(prettify_date(with_weekday), program=str(args.programs))
 
 
 if __name__ == "__main__":
